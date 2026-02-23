@@ -1,6 +1,6 @@
 # Velocity Edge Chat
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/aqdaarjamal/cloudflare-edge-chat-application)
 
 A production-ready full-stack chat application deployed on Cloudflare's edge network. This template combines a modern React frontend with a Cloudflare Workers backend, leveraging Durable Objects for real-time state management, Hono for API routing, and shadcn/ui for a polished UI.
 
@@ -81,7 +81,7 @@ Or manually:
 2. Deploy: `bun run build && wrangler deploy`
 3. Assets auto-serve SPA; API routes proxy to Workers.
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/aqdaarjamal/cloudflare-edge-chat-application)
 
 **Custom Domain**: Update `wrangler.jsonc` with your bindings/migrations, then `wrangler deploy`.
 
