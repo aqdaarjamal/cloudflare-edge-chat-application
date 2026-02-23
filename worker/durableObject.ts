@@ -28,12 +28,16 @@ export class GlobalDurableObject extends DurableObject {
   }
   // WebSocket Event Handlers (Hibernation API)
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
-    const [userId, userName] = this.ctx.getTags(ws);
+    const tags = this.ctx.getTags(ws);
+    const userId = tags[0] || "unknown";
+    const userName = tags[1] || "Anonymous";
     try {
       const data = JSON.parse(message as string);
       const roomId = data.roomId;
+      if (!roomId) return;
       if (data.type === 'chat') {
         const msg = await this.postMessage(roomId, {
+          roomId: roomId,
           senderId: userId,
           senderName: userName,
           content: data.content,
@@ -50,8 +54,6 @@ export class GlobalDurableObject extends DurableObject {
     }
   }
   async webSocketClose(ws: WebSocket) {
-    const [userId] = this.ctx.getTags(ws);
-    // In a real app, we'd clean up presence here
     ws.close();
   }
   broadcast(data: any) {

@@ -1,26 +1,27 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Send, Hash, Info, Search, Users, Activity } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useChatStore } from '@/lib/store';
 import { MessageBubble } from './MessageBubble';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Hash, Info, Search, Users, Activity } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 export function ChatArea() {
-  const activeRoomId = useChatStore((s) => s.activeRoomId);
-  const rooms = useChatStore((s) => s.rooms);
-  const messagesMap = useChatStore((s) => s.messages);
-  const typingUsersMap = useChatStore((s) => s.typingUsers);
-  const sendMessage = useChatStore((s) => s.sendMessage);
-  const reportTyping = useChatStore((s) => s.reportTyping);
-  const connectRoom = useChatStore((s) => s.connectRoom);
-  const connectionStatus = useChatStore((s) => s.connectionStatus);
-  const currentUser = useChatStore((s) => s.currentUser);
+  const activeRoomId = useChatStore(s => s.activeRoomId);
+  const rooms = useChatStore(s => s.rooms);
+  const messagesMap = useChatStore(useShallow(s => s.messages));
+  const typingUsersMap = useChatStore(useShallow(s => s.typingUsers));
+  const sendMessage = useChatStore(s => s.sendMessage);
+  const reportTyping = useChatStore(s => s.reportTyping);
+  const connectRoom = useChatStore(s => s.connectRoom);
+  const connectionStatus = useChatStore(s => s.connectionStatus);
+  const currentUser = useChatStore(s => s.currentUser);
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const room = useMemo(() => rooms.find(r => r.id === activeRoomId), [rooms, activeRoomId]);
-  const messages = useMemo(() => activeRoomId ? (messagesMap[activeRoomId] || []) : [], [activeRoomId, messagesMap]);
-  const typingUsers = useMemo(() => activeRoomId ? (typingUsersMap[activeRoomId] || []).filter(name => name !== currentUser?.name) : [], [activeRoomId, typingUsersMap, currentUser?.name]);
+  const messages = useMemo(() => (activeRoomId ? messagesMap[activeRoomId] || [] : []), [activeRoomId, messagesMap]);
+  const typingUsers = useMemo(() => (activeRoomId ? (typingUsersMap[activeRoomId] || []).filter(name => name !== currentUser?.name) : []), [activeRoomId, typingUsersMap, currentUser?.name]);
   useEffect(() => {
     if (activeRoomId) {
       connectRoom(activeRoomId);
@@ -61,10 +62,10 @@ export function ChatArea() {
           <Hash className="w-5 h-5 text-blue-500" />
           <h1 className="font-bold text-lg text-white">{room.name}</h1>
           <div className={cn(
-            "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-colors",
+            "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-colors",
             connectionStatus === 'connected' ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-orange-500/10 text-orange-500 border-orange-500/20"
           )}>
-            <div className={cn("w-1 h-1 rounded-full", connectionStatus === 'connected' ? "bg-green-500" : "bg-orange-500 animate-pulse")} />
+            <div className={cn("w-1.5 h-1.5 rounded-full", connectionStatus === 'connected' ? "bg-green-500" : "bg-orange-500 animate-pulse")} />
             {connectionStatus}
           </div>
         </div>

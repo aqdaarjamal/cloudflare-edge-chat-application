@@ -1,18 +1,19 @@
 import React, { useState, useEffect, memo } from 'react';
+import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
+import { Plus, Hash, Lock, LogOut, Zap } from 'lucide-react';
 import { useChatStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Plus, Hash, Lock, LogOut, Zap, Circle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useNavigate } from 'react-router-dom';
 import { RoomCreationModal } from './RoomCreationModal';
 const RoomItem = memo(({ roomId }: { roomId: string }) => {
-  const rooms = useChatStore(s => s.rooms);
+  const room = useChatStore(useShallow(s => s.rooms.find(r => r.id === roomId)));
   const activeRoomId = useChatStore(s => s.activeRoomId);
   const setActiveRoom = useChatStore(s => s.setActiveRoom);
   const connectionStatus = useChatStore(s => s.connectionStatus);
-  const room = rooms.find(r => r.id === roomId);
   if (!room) return null;
   const isActive = activeRoomId === roomId;
   return (
@@ -26,9 +27,9 @@ const RoomItem = memo(({ roomId }: { roomId: string }) => {
       )}
     >
       {isActive && (
-        <motion.div 
+        <motion.div
           layoutId="active-pill"
-          className="absolute left-0 w-1 h-4 bg-white rounded-r-full" 
+          className="absolute left-0 w-1 h-4 bg-white rounded-r-full"
         />
       )}
       <div className="relative">
@@ -53,13 +54,11 @@ const RoomItem = memo(({ roomId }: { roomId: string }) => {
   );
 });
 RoomItem.displayName = 'RoomItem';
-import { motion } from 'framer-motion';
 export function RoomList() {
-  const roomIds = useChatStore((s) => s.rooms.map(r => r.id));
-  const currentUser = useChatStore((s) => s.currentUser);
-  const logout = useChatStore((s) => s.logout);
-  const syncRooms = useChatStore((s) => s.syncRooms);
-  const connectionStatus = useChatStore((s) => s.connectionStatus);
+  const roomIds = useChatStore(useShallow(s => s.rooms.map(r => r.id)));
+  const currentUser = useChatStore(s => s.currentUser);
+  const logout = useChatStore(s => s.logout);
+  const syncRooms = useChatStore(s => s.syncRooms);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
   useEffect(() => {

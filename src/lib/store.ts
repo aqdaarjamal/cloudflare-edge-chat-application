@@ -49,8 +49,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   logout: () => {
     const { socket } = get();
-    socket?.close();
-    set({ currentUser: null, activeRoomId: null, socket: null });
+    if (socket) {
+      socket.onclose = null; // Prevent reconnect on explicit logout
+      socket.close();
+    }
+    set({ currentUser: null, activeRoomId: null, socket: null, connectionStatus: 'disconnected' });
     localStorage.removeItem('velocity_user');
   },
   setActiveRoom: (roomId: string) => set({ activeRoomId: roomId }),
@@ -63,8 +66,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
   connectRoom: (roomId: string) => {
-    const { socket, currentUser } = get();
-    if (socket) socket.close();
+    const { socket, currentUser, connectionStatus, activeRoomId } = get();
+    // Prevent redundant connections if already connecting/connected to THIS room
+    if (socket && (connectionStatus === 'connecting' || connectionStatus === 'connected')) {
+      return;
+    }
+    if (socket) {
+      socket.onclose = null;
+      socket.close();
+    }
     if (!currentUser) return;
     set({ connectionStatus: 'connecting' });
     const wsUrl = api.getWsUrl(roomId, currentUser.id, currentUser.name);
@@ -72,10 +82,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     newSocket.onopen = () => set({ connectionStatus: 'connected' });
     newSocket.onclose = () => {
       set({ connectionStatus: 'disconnected', socket: null });
-      // Reconnect logic
+      // Robust Reconnect logic: Only reconnect if we're still supposed to be in this room
       setTimeout(() => {
-        if (get().activeRoomId === roomId) get().connectRoom(roomId);
-      }, 5000);
+        if (get().activeRoomId === roomId && !get().socket) {
+          get().connectRoom(roomId);
+        }
+      }, 3000);
     };
     newSocket.onmessage = (event) => {
       const { type, data } = JSON.parse(event.data);
@@ -97,18 +109,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ socket: newSocket });
     // Load initial history
     api.messages.list(roomId).then(msgs => {
-      set(state => ({ messages: { ...state.messages, [roomId]: msgs } }));
-    });
+      set(state => ({ 
+        messages: { ...state.messages, [roomId]: msgs } 
+      }));
+    }).catch(err => console.error("History sync failed", err));
   },
   sendMessage: (roomId, content) => {
     const { socket, currentUser } = get();
-    if (!socket || !currentUser) return;
-    // Optimistic UI could be added here, but WebSocket is sub-millisecond
+    if (!socket || !currentUser || socket.readyState !== WebSocket.OPEN) return;
     socket.send(JSON.stringify({ type: 'chat', roomId, content }));
   },
   reportTyping: (roomId) => {
     const { socket } = get();
-    if (!socket) return;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
     socket.send(JSON.stringify({ type: 'typing', roomId }));
   },
   createRoom: async (name, type) => {
