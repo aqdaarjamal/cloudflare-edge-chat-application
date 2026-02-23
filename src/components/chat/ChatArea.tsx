@@ -3,55 +3,42 @@ import { useChatStore } from '@/lib/store';
 import { MessageBubble } from './MessageBubble';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Hash, Info, Search, Users } from 'lucide-react';
+import { Send, Hash, Info, Search, Users, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 export function ChatArea() {
   const activeRoomId = useChatStore((s) => s.activeRoomId);
   const rooms = useChatStore((s) => s.rooms);
   const messagesMap = useChatStore((s) => s.messages);
   const typingUsersMap = useChatStore((s) => s.typingUsers);
   const sendMessage = useChatStore((s) => s.sendMessage);
-  const syncMessages = useChatStore((s) => s.syncMessages);
-  const syncPresence = useChatStore((s) => s.syncPresence);
   const reportTyping = useChatStore((s) => s.reportTyping);
+  const connectRoom = useChatStore((s) => s.connectRoom);
+  const connectionStatus = useChatStore((s) => s.connectionStatus);
   const currentUser = useChatStore((s) => s.currentUser);
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const room = useMemo(() => rooms.find(r => r.id === activeRoomId), [rooms, activeRoomId]);
   const messages = useMemo(() => activeRoomId ? (messagesMap[activeRoomId] || []) : [], [activeRoomId, messagesMap]);
   const typingUsers = useMemo(() => activeRoomId ? (typingUsersMap[activeRoomId] || []).filter(name => name !== currentUser?.name) : [], [activeRoomId, typingUsersMap, currentUser?.name]);
-  // Polling Sync Engine
   useEffect(() => {
-    if (!activeRoomId) return;
-    syncMessages(activeRoomId);
-    syncPresence(activeRoomId);
-    const msgInterval = setInterval(() => syncMessages(activeRoomId), 3000);
-    const presenceInterval = setInterval(() => syncPresence(activeRoomId), 2000);
-    return () => {
-      clearInterval(msgInterval);
-      clearInterval(presenceInterval);
-    };
-  }, [activeRoomId, syncMessages, syncPresence]);
+    if (activeRoomId) {
+      connectRoom(activeRoomId);
+    }
+  }, [activeRoomId, connectRoom]);
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!input.trim() || !activeRoomId) return;
-    const content = input.trim();
+    sendMessage(activeRoomId, input.trim());
     setInput('');
-    try {
-      await sendMessage(activeRoomId, content);
-    } catch (err) {
-      console.error("Message failed to send");
-    }
   };
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
-    if (activeRoomId) {
-      reportTyping(activeRoomId);
-    }
+    if (activeRoomId) reportTyping(activeRoomId);
   };
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -73,11 +60,17 @@ export function ChatArea() {
         <div className="flex items-center gap-3">
           <Hash className="w-5 h-5 text-blue-500" />
           <h1 className="font-bold text-lg text-white">{room.name}</h1>
-          <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse ml-1" />
+          <div className={cn(
+            "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-colors",
+            connectionStatus === 'connected' ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-orange-500/10 text-orange-500 border-orange-500/20"
+          )}>
+            <div className={cn("w-1 h-1 rounded-full", connectionStatus === 'connected' ? "bg-green-500" : "bg-orange-500 animate-pulse")} />
+            {connectionStatus}
+          </div>
         </div>
         <div className="flex items-center gap-4 text-slate-400">
           <Search className="w-5 h-5 cursor-pointer hover:text-white transition-colors" />
-          <Users className="w-5 h-5 md:hidden cursor-pointer hover:text-white transition-colors" />
+          <Users className="w-5 h-5 lg:hidden cursor-pointer hover:text-white transition-colors" />
           <Info className="w-5 h-5 cursor-pointer hover:text-white transition-colors" />
         </div>
       </header>
@@ -86,9 +79,9 @@ export function ChatArea() {
           {messages.length === 0 ? (
             <div className="text-center py-20 text-slate-500 space-y-4">
               <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/5">
-                <Hash className="w-8 h-8 opacity-20" />
+                <Activity className="w-8 h-8 opacity-20" />
               </div>
-              <p className="text-sm font-medium">This is the beginning of the #{room.name} channel.</p>
+              <p className="text-sm font-medium">Channel history synced at edge.</p>
             </div>
           ) : (
             messages.map((msg) => (
@@ -105,7 +98,7 @@ export function ChatArea() {
         <div className="max-w-4xl mx-auto relative group">
           <AnimatePresence>
             {typingUsers.length > 0 && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 5 }}
@@ -117,7 +110,7 @@ export function ChatArea() {
                   <span className="w-1 h-1 bg-blue-500 rounded-full animate-bounce [animation-delay:0.4s]" />
                 </div>
                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                  {typingUsers.length === 1 
+                  {typingUsers.length === 1
                     ? `${typingUsers[0]} is typing...`
                     : `${typingUsers.length} people are typing...`}
                 </span>
@@ -133,15 +126,12 @@ export function ChatArea() {
           />
           <Button
             onClick={handleSend}
-            disabled={!input.trim()}
+            disabled={!input.trim() || connectionStatus !== 'connected'}
             className="absolute right-2 bottom-2 h-10 w-10 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-900/40 transition-all disabled:opacity-50"
           >
             <Send className="w-4 h-4" />
           </Button>
         </div>
-        <p className="text-[10px] text-slate-600 text-center mt-3 uppercase tracking-[0.2em] font-medium">
-          Edge Optimized Syncing • Global Low Latency
-        </p>
       </footer>
     </div>
   );

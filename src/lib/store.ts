@@ -6,21 +6,21 @@ interface ChatState {
   activeRoomId: string | null;
   rooms: Room[];
   messages: Record<string, Message[]>;
-  typingUsers: Record<string, string[]>; // roomId -> userNames
-  onlineUsers: Record<string, User[]>; // roomId -> Users
+  typingUsers: Record<string, string[]>;
+  onlineUsers: Record<string, User[]>;
   isSidebarOpen: boolean;
   isLoading: boolean;
-  connectionStatus: 'connected' | 'reconnecting' | 'disconnected';
+  connectionStatus: 'connected' | 'connecting' | 'disconnected';
+  socket: WebSocket | null;
   error: string | null;
   // Actions
   login: (email: string) => Promise<void>;
   logout: () => void;
   setActiveRoom: (roomId: string) => void;
   syncRooms: () => Promise<void>;
-  syncMessages: (roomId: string) => Promise<void>;
-  syncPresence: (roomId: string) => Promise<void>;
-  reportTyping: (roomId: string) => Promise<void>;
-  sendMessage: (roomId: string, content: string) => Promise<void>;
+  connectRoom: (roomId: string) => void;
+  sendMessage: (roomId: string, content: string) => void;
+  reportTyping: (roomId: string) => void;
   createRoom: (name: string, type: 'public' | 'private') => Promise<Room>;
   setSidebarOpen: (open: boolean) => void;
 }
@@ -33,91 +33,83 @@ export const useChatStore = create<ChatState>((set, get) => ({
   onlineUsers: {},
   isSidebarOpen: true,
   isLoading: false,
-  connectionStatus: 'connected',
+  connectionStatus: 'disconnected',
+  socket: null,
   error: null,
   login: async (email: string) => {
     set({ isLoading: true, error: null });
     try {
       const user = await api.auth.login(email);
-      set({ currentUser: user, isLoading: false, connectionStatus: 'connected' });
+      set({ currentUser: user, isLoading: false });
       localStorage.setItem('velocity_user', JSON.stringify(user));
     } catch (err) {
-      set({ error: (err as Error).message, isLoading: false, connectionStatus: 'disconnected' });
+      set({ error: (err as Error).message, isLoading: false });
       throw err;
     }
   },
   logout: () => {
-    set({ currentUser: null, activeRoomId: null });
+    const { socket } = get();
+    socket?.close();
+    set({ currentUser: null, activeRoomId: null, socket: null });
     localStorage.removeItem('velocity_user');
   },
   setActiveRoom: (roomId: string) => set({ activeRoomId: roomId }),
   syncRooms: async () => {
     try {
       const rooms = await api.rooms.list();
-      set({ rooms, connectionStatus: 'connected' });
+      set({ rooms });
     } catch (err) {
-      set({ connectionStatus: 'reconnecting' });
+      console.error('Failed to sync rooms', err);
     }
   },
-  syncMessages: async (roomId: string) => {
-    try {
-      const msgs = await api.messages.list(roomId);
-      set((state) => ({
-        messages: { ...state.messages, [roomId]: msgs }
-      }));
-    } catch (err) {
-      console.error('Failed to sync messages', err);
-    }
-  },
-  syncPresence: async (roomId: string) => {
-    try {
-      const { typing, online } = await api.rooms.getPresence(roomId);
-      set((state) => ({
-        typingUsers: { ...state.typingUsers, [roomId]: typing },
-        onlineUsers: { ...state.onlineUsers, [roomId]: online }
-      }));
-    } catch (err) {
-      console.error('Failed to sync presence', err);
-    }
-  },
-  reportTyping: async (roomId: string) => {
-    const { currentUser } = get();
+  connectRoom: (roomId: string) => {
+    const { socket, currentUser } = get();
+    if (socket) socket.close();
     if (!currentUser) return;
-    try {
-      await api.rooms.reportTyping(roomId, currentUser.id, currentUser.name);
-    } catch (err) {
-      console.error('Failed to report typing', err);
-    }
-  },
-  sendMessage: async (roomId, content) => {
-    const { currentUser, messages } = get();
-    if (!currentUser) return;
-    const optimisticMsg: Message = {
-      id: `temp-${Date.now()}`,
-      roomId,
-      senderId: currentUser.id,
-      senderName: currentUser.name,
-      content,
-      createdAt: new Date().toISOString(),
-      type: 'text',
+    set({ connectionStatus: 'connecting' });
+    const wsUrl = api.getWsUrl(roomId, currentUser.id, currentUser.name);
+    const newSocket = new WebSocket(wsUrl);
+    newSocket.onopen = () => set({ connectionStatus: 'connected' });
+    newSocket.onclose = () => {
+      set({ connectionStatus: 'disconnected', socket: null });
+      // Reconnect logic
+      setTimeout(() => {
+        if (get().activeRoomId === roomId) get().connectRoom(roomId);
+      }, 5000);
     };
-    const prevMsgs = messages[roomId] || [];
-    set((state) => ({
-      messages: { ...state.messages, [roomId]: [...prevMsgs, optimisticMsg] }
-    }));
-    try {
-      await api.messages.send(roomId, {
-        senderId: currentUser.id,
-        senderName: currentUser.name,
-        content,
-        type: 'text'
-      });
-    } catch (err) {
-      set((state) => ({
-        messages: { ...state.messages, [roomId]: prevMsgs }
-      }));
-      throw err;
-    }
+    newSocket.onmessage = (event) => {
+      const { type, data } = JSON.parse(event.data);
+      if (type === 'message') {
+        const msg = data as Message;
+        set((state) => ({
+          messages: {
+            ...state.messages,
+            [msg.roomId]: [...(state.messages[msg.roomId] || []), msg]
+          }
+        }));
+      } else if (type === 'presence') {
+        set((state) => ({
+          typingUsers: { ...state.typingUsers, [roomId]: data.typing },
+          onlineUsers: { ...state.onlineUsers, [roomId]: data.online }
+        }));
+      }
+    };
+    set({ socket: newSocket });
+    // Load initial history
+    api.messages.list(roomId).then(msgs => {
+      set(state => ({ messages: { ...state.messages, [roomId]: msgs } }));
+    });
+  },
+  sendMessage: (roomId, content) => {
+    const { socket, currentUser } = get();
+    if (!socket || !currentUser) return;
+    // Optimistic UI could be added here, but WebSocket is sub-millisecond
+    socket.send(JSON.stringify({ type: 'chat', roomId, content }));
+  },
+  reportTyping: (roomId) => {
+    const { socket } = get();
+    if (!socket) return;
+    socket.send(JSON.stringify({ type: 'typing', roomId }));
   },
   createRoom: async (name, type) => {
     const room = await api.rooms.create(name, type);

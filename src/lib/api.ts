@@ -17,6 +17,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return result.data;
 }
 export const api = {
+  getWsUrl: (roomId: string, userId: string, userName: string) => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    return `${protocol}//${host}/api/chat/ws/${roomId}?userId=${encodeURIComponent(userId)}&userName=${encodeURIComponent(userName)}`;
+  },
   auth: {
     login: (email: string) => request<User>('/api/auth/login', {
       method: 'POST',
@@ -29,20 +34,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ name, type }),
     }),
-    reportTyping: (roomId: string, userId: string, userName: string) => 
-      request<null>(`/api/rooms/${roomId}/presence`, {
-        method: 'POST',
-        body: JSON.stringify({ userId, userName, isTyping: true }),
-      }),
-    getPresence: (roomId: string) => 
-      request<{ typing: string[], online: User[] }>(`/api/rooms/${roomId}/presence`),
   },
   messages: {
     list: (roomId: string) => request<Message[]>(`/api/rooms/${roomId}/messages`),
-    send: (roomId: string, message: { senderId: string, senderName: string, content: string, type: string }) =>
-      request<Message>(`/api/rooms/${roomId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify(message),
-      }),
   },
 };
