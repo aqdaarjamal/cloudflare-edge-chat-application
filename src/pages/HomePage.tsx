@@ -1,138 +1,129 @@
-// Home page of the app.
-// Currently a demo placeholder "please wait" screen.
-// Replace this file with your actual app UI. Do not delete it to use some other file as homepage. Simply replace the entire contents of this file.
-
-import { useEffect, useMemo, useState } from 'react'
-import { Sparkles } from 'lucide-react'
-
-import { ThemeToggle } from '@/components/ThemeToggle'
-import { HAS_TEMPLATE_DEMO, TemplateDemo } from '@/components/TemplateDemo'
-import { Button } from '@/components/ui/button'
-import { Toaster, toast } from '@/components/ui/sonner'
-
-function formatDuration(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000))
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
-
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { Sparkles, ArrowRight, Zap, Shield, Globe } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
 export function HomePage() {
-  const [coins, setCoins] = useState(0)
-  const [isRunning, setIsRunning] = useState(false)
-  const [startedAt, setStartedAt] = useState<number | null>(null)
-  const [elapsedMs, setElapsedMs] = useState(0)
-
-  useEffect(() => {
-    if (!isRunning || startedAt === null) return
-
-    const t = setInterval(() => {
-      setElapsedMs(Date.now() - startedAt)
-    }, 250)
-
-    return () => clearInterval(t)
-  }, [isRunning, startedAt])
-
-  const formatted = useMemo(() => formatDuration(elapsedMs), [elapsedMs])
-
-  const onPleaseWait = () => {
-    setCoins((c) => c + 1)
-
-    if (!isRunning) {
-      // Resume from the current elapsed time
-      setStartedAt(Date.now() - elapsedMs)
-      setIsRunning(true)
-      toast.success('Building your app…', {
-        description: "Hang tight — we're setting everything up.",
-      })
-      return
-    }
-
-    setIsRunning(false)
-    toast.info('Still working…', {
-      description: 'You can come back in a moment.',
-    })
-  }
-
-  const onReset = () => {
-    setCoins(0)
-    setIsRunning(false)
-    setStartedAt(null)
-    setElapsedMs(0)
-    toast('Reset complete')
-  }
-
-  const onAddCoin = () => {
-    setCoins((c) => c + 1)
-    toast('Coin added')
-  }
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-4 overflow-hidden relative">
-      <ThemeToggle />
-      <div className="absolute inset-0 bg-gradient-rainbow opacity-10 dark:opacity-20 pointer-events-none" />
-
-      <div className="text-center space-y-8 relative z-10 animate-fade-in w-full">
-        <div className="flex justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-primary floating">
-            <Sparkles className="w-8 h-8 text-white rotating" />
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h1 className="text-5xl md:text-7xl font-display font-bold text-balance leading-tight">
-            Creating your <span className="text-gradient">app</span>
-          </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto text-pretty">
-            Your application would be ready soon.
-          </p>
-        </div>
-
-        {HAS_TEMPLATE_DEMO ? (
-          <div className="max-w-5xl mx-auto text-left">
-            <TemplateDemo />
-          </div>
-        ) : (
-          <>
-            <div className="flex justify-center gap-4">
-              <Button
-                size="lg"
-                onClick={onPleaseWait}
-                className="btn-gradient px-8 py-4 text-lg font-semibold hover:-translate-y-0.5 transition-all duration-200"
-                aria-live="polite"
-              >
-                Please Wait
-              </Button>
-            </div>
-
-            <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-              <div>
-                Time elapsed:{' '}
-                <span className="font-medium tabular-nums text-foreground">{formatted}</span>
-              </div>
-              <div>
-                Coins:{' '}
-                <span className="font-medium tabular-nums text-foreground">{coins}</span>
-              </div>
-            </div>
-
-            <div className="flex justify-center gap-2">
-              <Button variant="outline" size="sm" onClick={onReset}>
-                Reset
-              </Button>
-              <Button variant="outline" size="sm" onClick={onAddCoin}>
-                Add Coin
-              </Button>
-            </div>
-          </>
-        )}
+    <div className="min-h-screen bg-[#020617] text-slate-200 selection:bg-blue-500/30">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full" />
       </div>
-
-      <footer className="absolute bottom-8 text-center text-muted-foreground/80">
-        <p>Powered by Cloudflare</p>
+      <nav className="relative z-10 max-w-7xl mx-auto px-6 py-8 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center">
+            <Zap className="w-5 h-5 text-white" />
+          </div>
+          <span className="font-bold text-xl tracking-tight text-white">Velocity</span>
+        </div>
+        <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
+          <a href="#" className="hover:text-white transition-colors">Features</a>
+          <a href="#" className="hover:text-white transition-colors">Security</a>
+          <a href="#" className="hover:text-white transition-colors">Enterprise</a>
+        </div>
+        <Link to="/auth">
+          <Button variant="outline" className="border-white/10 hover:bg-white/5 text-slate-200">
+            Sign In
+          </Button>
+        </Link>
+      </nav>
+      <main className="relative z-10 max-w-7xl mx-auto px-6 py-20 md:py-32">
+        <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div className="space-y-8">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold tracking-widest uppercase"
+            >
+              <Sparkles className="w-3 h-3" />
+              Powered by Cloudflare Workers
+            </motion.div>
+            <motion.h1 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="text-6xl md:text-8xl font-bold tracking-tighter text-white leading-tight"
+            >
+              The speed of <br />
+              <span className="text-blue-500 italic">thought.</span>
+            </motion.h1>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-lg md:text-xl text-slate-400 max-w-lg leading-relaxed"
+            >
+              Experience sub-millisecond real-time communication built on the edge. No servers, no lag, just pure connection.
+            </motion.p>
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="flex flex-col sm:flex-row gap-4"
+            >
+              <Link to="/auth">
+                <Button size="lg" className="bg-blue-600 hover:bg-blue-500 text-white px-8 h-14 rounded-2xl text-lg font-bold transition-all group shadow-xl shadow-blue-900/20">
+                  Launch Application
+                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+              <Button size="lg" variant="ghost" className="h-14 px-8 text-slate-400 hover:text-white rounded-2xl">
+                View Documentation
+              </Button>
+            </motion.div>
+          </div>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.4 }}
+            className="relative"
+          >
+            <div className="absolute inset-0 bg-blue-500/20 blur-[100px] rounded-full" />
+            <div className="relative bg-slate-900/50 backdrop-blur-3xl border border-white/5 p-8 rounded-[40px] shadow-2xl">
+              <div className="space-y-6">
+                <div className="flex gap-4">
+                  <div className="w-12 h-12 bg-slate-800 rounded-2xl" />
+                  <div className="space-y-2 flex-1 pt-2">
+                    <div className="h-2 w-24 bg-slate-700 rounded-full" />
+                    <div className="h-2 w-full bg-slate-800 rounded-full" />
+                  </div>
+                </div>
+                <div className="flex gap-4 justify-end">
+                  <div className="space-y-2 flex-1 pt-2 text-right">
+                    <div className="h-2 w-16 bg-blue-500/50 rounded-full ml-auto" />
+                    <div className="h-8 w-full bg-blue-600/20 rounded-2xl" />
+                  </div>
+                  <div className="w-12 h-12 bg-blue-600/30 rounded-2xl" />
+                </div>
+                <div className="h-[200px] bg-slate-800/20 rounded-3xl border border-dashed border-white/5 flex items-center justify-center">
+                  <Globe className="w-12 h-12 text-slate-800 animate-pulse" />
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </main>
+      <footer className="relative z-10 max-w-7xl mx-auto px-6 py-20 border-t border-white/5 mt-20">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+          <div className="space-y-4">
+            <h4 className="font-bold text-white uppercase text-xs tracking-widest">Global Network</h4>
+            <p className="text-slate-500 text-sm">300+ edge locations worldwide for near-zero latency.</p>
+          </div>
+          <div className="space-y-4">
+            <h4 className="font-bold text-white uppercase text-xs tracking-widest">Enterprise Ready</h4>
+            <p className="text-slate-500 text-sm">E2EE, SOC2 compliance, and custom data residency.</p>
+          </div>
+          <div className="space-y-4">
+            <h4 className="font-bold text-white uppercase text-xs tracking-widest">Durable Objects</h4>
+            <p className="text-slate-500 text-sm">Reliable stateful computing without the overhead.</p>
+          </div>
+          <div className="space-y-4">
+            <h4 className="font-bold text-white uppercase text-xs tracking-widest">Open API</h4>
+            <p className="text-slate-500 text-sm">Integrate Velocity directly into your stack seamlessly.</p>
+          </div>
+        </div>
       </footer>
-
-      <Toaster richColors closeButton />
     </div>
-  )
+  );
 }

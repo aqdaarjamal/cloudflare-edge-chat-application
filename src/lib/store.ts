@@ -1,133 +1,74 @@
 import { create } from 'zustand';
 import { User, Message, Room } from '@shared/types';
-import { api } from './api';
 interface ChatState {
   currentUser: User | null;
   activeRoomId: string | null;
   rooms: Room[];
   messages: Record<string, Message[]>;
-  typingUsers: Record<string, string[]>;
-  onlineUsers: Record<string, User[]>;
   isSidebarOpen: boolean;
-  isLoading: boolean;
-  connectionStatus: 'connected' | 'connecting' | 'disconnected';
-  socket: WebSocket | null;
-  error: string | null;
   // Actions
-  login: (email: string) => Promise<void>;
+  login: (email: string) => void;
   logout: () => void;
   setActiveRoom: (roomId: string) => void;
-  syncRooms: () => Promise<void>;
-  connectRoom: (roomId: string) => void;
   sendMessage: (roomId: string, content: string) => void;
-  reportTyping: (roomId: string) => void;
-  createRoom: (name: string, type: 'public' | 'private') => Promise<Room>;
+  addIncomingMessage: (message: Message) => void;
   setSidebarOpen: (open: boolean) => void;
 }
-export const useChatStore = create<ChatState>((set, get) => ({
-  currentUser: JSON.parse(localStorage.getItem('velocity_user') || 'null'),
-  activeRoomId: null,
-  rooms: [],
-  messages: {},
-  typingUsers: {},
-  onlineUsers: {},
+const MOCK_USER: User = {
+  id: 'u1',
+  name: 'Alex Edge',
+  email: 'alex@example.com',
+  avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex',
+  status: 'online',
+};
+const MOCK_ROOMS: Room[] = [
+  { id: 'r1', name: 'General Lounge', type: 'public', unreadCount: 0, lastMessage: 'Welcome to the edge!' },
+  { id: 'r2', name: 'Dev Ops', type: 'public', unreadCount: 3, lastMessage: 'New deployment successful' },
+  { id: 'r3', name: 'Design System', type: 'private', unreadCount: 0, lastMessage: 'Check the new nebula theme' },
+];
+const MOCK_MESSAGES: Record<string, Message[]> = {
+  'r1': [
+    { id: 'm1', roomId: 'r1', senderId: 'u2', senderName: 'Sarah', content: 'Hey everyone! How is the latency today?', createdAt: new Date(Date.now() - 3600000).toISOString(), type: 'text' },
+    { id: 'm2', roomId: 'r1', senderId: 'u1', senderName: 'Alex Edge', content: 'Sub-millisecond as usual. Cloudflare is flying.', createdAt: new Date(Date.now() - 1800000).toISOString(), type: 'text' },
+  ],
+};
+export const useChatStore = create<ChatState>((set) => ({
+  currentUser: null,
+  activeRoomId: 'r1',
+  rooms: MOCK_ROOMS,
+  messages: MOCK_MESSAGES,
   isSidebarOpen: true,
-  isLoading: false,
-  connectionStatus: 'disconnected',
-  socket: null,
-  error: null,
-  login: async (email: string) => {
-    set({ isLoading: true, error: null });
-    try {
-      const user = await api.auth.login(email);
-      set({ currentUser: user, isLoading: false });
-      localStorage.setItem('velocity_user', JSON.stringify(user));
-    } catch (err) {
-      set({ error: (err as Error).message, isLoading: false });
-      throw err;
-    }
-  },
-  logout: () => {
-    const { socket } = get();
-    if (socket) {
-      socket.onclose = null; // Prevent reconnect on explicit logout
-      socket.close();
-    }
-    set({ currentUser: null, activeRoomId: null, socket: null, connectionStatus: 'disconnected' });
-    localStorage.removeItem('velocity_user');
-  },
+  login: (email: string) => set({ 
+    currentUser: { ...MOCK_USER, email } 
+  }),
+  logout: () => set({ currentUser: null }),
   setActiveRoom: (roomId: string) => set({ activeRoomId: roomId }),
-  syncRooms: async () => {
-    try {
-      const rooms = await api.rooms.list();
-      set({ rooms });
-    } catch (err) {
-      console.error('Failed to sync rooms', err);
-    }
-  },
-  connectRoom: (roomId: string) => {
-    const { socket, currentUser, connectionStatus, activeRoomId } = get();
-    // Prevent redundant connections if already connecting/connected to THIS room
-    if (socket && (connectionStatus === 'connecting' || connectionStatus === 'connected')) {
-      return;
-    }
-    if (socket) {
-      socket.onclose = null;
-      socket.close();
-    }
-    if (!currentUser) return;
-    set({ connectionStatus: 'connecting' });
-    const wsUrl = api.getWsUrl(roomId, currentUser.id, currentUser.name);
-    const newSocket = new WebSocket(wsUrl);
-    newSocket.onopen = () => set({ connectionStatus: 'connected' });
-    newSocket.onclose = () => {
-      set({ connectionStatus: 'disconnected', socket: null });
-      // Robust Reconnect logic: Only reconnect if we're still supposed to be in this room
-      setTimeout(() => {
-        if (get().activeRoomId === roomId && !get().socket) {
-          get().connectRoom(roomId);
-        }
-      }, 3000);
+  setSidebarOpen: (open: boolean) => set({ isSidebarOpen: open }),
+  sendMessage: (roomId, content) => set((state) => {
+    const newMessage: Message = {
+      id: Math.random().toString(36).substr(2, 9),
+      roomId,
+      senderId: state.currentUser?.id || 'anon',
+      senderName: state.currentUser?.name || 'Anonymous',
+      content,
+      createdAt: new Date().toISOString(),
+      type: 'text',
     };
-    newSocket.onmessage = (event) => {
-      const { type, data } = JSON.parse(event.data);
-      if (type === 'message') {
-        const msg = data as Message;
-        set((state) => ({
-          messages: {
-            ...state.messages,
-            [msg.roomId]: [...(state.messages[msg.roomId] || []), msg]
-          }
-        }));
-      } else if (type === 'presence') {
-        set((state) => ({
-          typingUsers: { ...state.typingUsers, [roomId]: data.typing },
-          onlineUsers: { ...state.onlineUsers, [roomId]: data.online }
-        }));
+    const roomMessages = state.messages[roomId] || [];
+    return {
+      messages: {
+        ...state.messages,
+        [roomId]: [...roomMessages, newMessage],
       }
     };
-    set({ socket: newSocket });
-    // Load initial history
-    api.messages.list(roomId).then(msgs => {
-      set(state => ({ 
-        messages: { ...state.messages, [roomId]: msgs } 
-      }));
-    }).catch(err => console.error("History sync failed", err));
-  },
-  sendMessage: (roomId, content) => {
-    const { socket, currentUser } = get();
-    if (!socket || !currentUser || socket.readyState !== WebSocket.OPEN) return;
-    socket.send(JSON.stringify({ type: 'chat', roomId, content }));
-  },
-  reportTyping: (roomId) => {
-    const { socket } = get();
-    if (!socket || socket.readyState !== WebSocket.OPEN) return;
-    socket.send(JSON.stringify({ type: 'typing', roomId }));
-  },
-  createRoom: async (name, type) => {
-    const room = await api.rooms.create(name, type);
-    await get().syncRooms();
-    return room;
-  },
-  setSidebarOpen: (open: boolean) => set({ isSidebarOpen: open }),
+  }),
+  addIncomingMessage: (message) => set((state) => {
+    const roomMessages = state.messages[message.roomId] || [];
+    return {
+      messages: {
+        ...state.messages,
+        [message.roomId]: [...roomMessages, message],
+      }
+    };
+  }),
 }));
