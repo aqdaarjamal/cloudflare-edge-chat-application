@@ -3,14 +3,12 @@ import { Env } from './core-utils';
 import type { ApiResponse, User, Room, Message } from '@shared/types';
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
   const getStub = (env: Env) => env.GlobalDurableObject.get(env.GlobalDurableObject.idFromName("global_state"));
-  // Auth
   app.post('/api/auth/login', async (c) => {
     const { email } = await c.req.json();
     const stub = getStub(c.env);
     const user = await stub.handleAuth(email);
     return c.json({ success: true, data: user } satisfies ApiResponse<User>);
   });
-  // Rooms
   app.get('/api/rooms', async (c) => {
     const stub = getStub(c.env);
     const rooms = await stub.getRooms();
@@ -22,7 +20,6 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const room = await stub.createRoom(name, type);
     return c.json({ success: true, data: room } satisfies ApiResponse<Room>);
   });
-  // Messages
   app.get('/api/rooms/:id/messages', async (c) => {
     const roomId = c.req.param('id');
     const stub = getStub(c.env);
@@ -35,5 +32,18 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const stub = getStub(c.env);
     const message = await stub.postMessage(roomId, body);
     return c.json({ success: true, data: message } satisfies ApiResponse<Message>);
+  });
+  app.post('/api/rooms/:id/presence', async (c) => {
+    const roomId = c.req.param('id');
+    const { userId, userName, isTyping } = await c.req.json();
+    const stub = getStub(c.env);
+    await stub.updatePresence(roomId, userId, userName, isTyping);
+    return c.json({ success: true, data: null } satisfies ApiResponse<null>);
+  });
+  app.get('/api/rooms/:id/presence', async (c) => {
+    const roomId = c.req.param('id');
+    const stub = getStub(c.env);
+    const data = await stub.getPresence(roomId);
+    return c.json({ success: true, data } satisfies ApiResponse<any>);
   });
 }

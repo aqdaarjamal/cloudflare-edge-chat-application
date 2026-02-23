@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, ArrowRight } from 'lucide-react';
+import { ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 export function AuthPage() {
   const [step, setStep] = useState<'email' | 'otp'>('email');
@@ -18,8 +18,8 @@ export function AuthPage() {
     e.preventDefault();
     if (!email) return;
     setStep('otp');
-    toast.success('Simulation Code Sent', { 
-      description: 'Enter any 6-digit code to proceed with the demo.' 
+    toast.success('Simulation Code Sent', {
+      description: 'Enter any 6-digit code to proceed with the demo.'
     });
   };
   const handleOtpSubmit = async (e: React.FormEvent) => {
@@ -36,6 +36,18 @@ export function AuthPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#020617] p-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(37,99,235,0.1),transparent)]" />
+      {isLoading && (
+        <div className="absolute inset-0 z-[100] bg-black/40 backdrop-blur-sm flex items-center justify-center">
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="flex flex-col items-center gap-4 text-blue-400"
+          >
+            <Loader2 className="w-12 h-12 animate-spin" />
+            <span className="font-bold tracking-widest uppercase text-xs">Synchronizing...</span>
+          </motion.div>
+        </div>
+      )}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -43,8 +55,8 @@ export function AuthPage() {
       >
         <Card className="bg-slate-900/50 backdrop-blur-xl border-white/5 shadow-2xl overflow-hidden">
           <div className="h-1.5 w-full bg-blue-600/20">
-            <motion.div 
-              className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
+            <motion.div
+              className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
               initial={{ width: '0%' }}
               animate={{ width: step === 'email' ? '50%' : '100%' }}
             />
@@ -81,6 +93,7 @@ export function AuthPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    disabled={isLoading}
                     className="bg-slate-800 border-white/10 text-white h-12 rounded-xl focus:ring-blue-500/50"
                   />
                   <Button
@@ -103,10 +116,11 @@ export function AuthPage() {
                 >
                   <Input
                     type="text"
-                    placeholder="Enter 6-digit code"
+                    placeholder="6-digit code"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
                     required
+                    disabled={isLoading}
                     className="bg-slate-800 border-white/10 text-white h-12 text-center tracking-[0.5em] text-xl rounded-xl"
                   />
                   <Button
@@ -121,6 +135,7 @@ export function AuthPage() {
                     variant="ghost"
                     className="w-full text-slate-500 hover:text-white"
                     onClick={() => setStep('email')}
+                    disabled={isLoading}
                   >
                     Back to Email
                   </Button>

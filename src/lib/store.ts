@@ -6,8 +6,11 @@ interface ChatState {
   activeRoomId: string | null;
   rooms: Room[];
   messages: Record<string, Message[]>;
+  typingUsers: Record<string, string[]>; // roomId -> userNames
+  onlineUsers: Record<string, User[]>; // roomId -> Users
   isSidebarOpen: boolean;
   isLoading: boolean;
+  connectionStatus: 'connected' | 'reconnecting' | 'disconnected';
   error: string | null;
   // Actions
   login: (email: string) => Promise<void>;
@@ -15,6 +18,8 @@ interface ChatState {
   setActiveRoom: (roomId: string) => void;
   syncRooms: () => Promise<void>;
   syncMessages: (roomId: string) => Promise<void>;
+  syncPresence: (roomId: string) => Promise<void>;
+  reportTyping: (roomId: string) => Promise<void>;
   sendMessage: (roomId: string, content: string) => Promise<void>;
   createRoom: (name: string, type: 'public' | 'private') => Promise<Room>;
   setSidebarOpen: (open: boolean) => void;
@@ -24,17 +29,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeRoomId: null,
   rooms: [],
   messages: {},
+  typingUsers: {},
+  onlineUsers: {},
   isSidebarOpen: true,
   isLoading: false,
+  connectionStatus: 'connected',
   error: null,
   login: async (email: string) => {
     set({ isLoading: true, error: null });
     try {
       const user = await api.auth.login(email);
-      set({ currentUser: user, isLoading: false });
+      set({ currentUser: user, isLoading: false, connectionStatus: 'connected' });
       localStorage.setItem('velocity_user', JSON.stringify(user));
     } catch (err) {
-      set({ error: (err as Error).message, isLoading: false });
+      set({ error: (err as Error).message, isLoading: false, connectionStatus: 'disconnected' });
       throw err;
     }
   },
@@ -46,9 +54,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   syncRooms: async () => {
     try {
       const rooms = await api.rooms.list();
-      set({ rooms });
+      set({ rooms, connectionStatus: 'connected' });
     } catch (err) {
-      console.error('Failed to sync rooms', err);
+      set({ connectionStatus: 'reconnecting' });
     }
   },
   syncMessages: async (roomId: string) => {
@@ -61,10 +69,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
       console.error('Failed to sync messages', err);
     }
   },
+  syncPresence: async (roomId: string) => {
+    try {
+      const { typing, online } = await api.rooms.getPresence(roomId);
+      set((state) => ({
+        typingUsers: { ...state.typingUsers, [roomId]: typing },
+        onlineUsers: { ...state.onlineUsers, [roomId]: online }
+      }));
+    } catch (err) {
+      console.error('Failed to sync presence', err);
+    }
+  },
+  reportTyping: async (roomId: string) => {
+    const { currentUser } = get();
+    if (!currentUser) return;
+    try {
+      await api.rooms.reportTyping(roomId, currentUser.id, currentUser.name);
+    } catch (err) {
+      console.error('Failed to report typing', err);
+    }
+  },
   sendMessage: async (roomId, content) => {
     const { currentUser, messages } = get();
     if (!currentUser) return;
-    // Optimistic Update
     const optimisticMsg: Message = {
       id: `temp-${Date.now()}`,
       roomId,
@@ -85,9 +112,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         content,
         type: 'text'
       });
-      // Final state will be corrected on next sync
     } catch (err) {
-      // Rollback
       set((state) => ({
         messages: { ...state.messages, [roomId]: prevMsgs }
       }));
